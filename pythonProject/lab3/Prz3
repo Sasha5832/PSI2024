@@ -1,0 +1,115 @@
+from dataclasses import dataclass
+from abc import ABC, abstractmethod
+import aiohttp
+from dependency_injector import containers, providers
+from dependency_injector.wiring import Provide, inject
+from datetime import datetime
+import asyncio
+from typing import Iterable, Optional, List
+import logging
+
+# Assuming consts module exists
+import consts
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+@dataclass
+class AirQualityRecord:
+    event_time: datetime
+    pm10_value: float
+
+class IAirQualityRepository(ABC):
+    @abstractmethod
+    async def get_last_air_quality_params(self, sensor_id: int) -> Optional[AirQualityRecord]:
+        pass
+
+    @abstractmethod
+    async def get_all_air_quality_params(self, sensor_id: int) -> Optional[Iterable[AirQualityRecord]]:
+        pass
+
+class AirQualityRepository(IAirQualityRepository):
+    async def get_last_air_quality_params(self, sensor_id: int) -> Optional[AirQualityRecord]:
+        all_params = await self._get_params(sensor_id)
+        parsed_params = await self._parse_params(all_params) if all_params else None
+
+        return parsed_params[0] if parsed_params else None
+
+    async def get_all_air_quality_params(self, sensor_id: int) -> Optional[Iterable[AirQualityRecord]]:
+        all_params = await self._get_params(sensor_id)
+        parsed_params = await self._parse_params(all_params) if all_params else None
+
+        return parsed_params
+
+    async def _get_params(self, sensor_id: int) -> Optional[dict]:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(consts.API_SENSOR_URL.format(sensor_id=sensor_id)) as response:
+                    if response.status != 200:
+                        logger.error(f"Failed to fetch data: {response.status}")
+                        return None
+                    return await response.json()
+        except Exception as e:
+            logger.exception(f"Exception during _get_params: {e}")
+            return None
+
+    async def _parse_params(self, params: dict) -> List[AirQualityRecord]:
+        records = []
+        for record in params.get("values", []):
+            try:
+                event_time = record.get("date")
+                if isinstance(event_time, str):
+                    event_time = datetime.fromisoformat(event_time)
+                pm10_value = float(record.get("value"))
+                records.append(AirQualityRecord(event_time=event_time, pm10_value=pm10_value))
+            except Exception as e:
+                logger.exception(f"Error parsing record {record}: {e}")
+        return records
+
+class IAirQualityService(ABC):
+    @abstractmethod
+    async def get_air_quality_index(self, sensor_id: int) -> str:
+        pass
+
+    @abstractmethod
+    async def get_mean_params(self, sensor_id: int) -> Optional[float]:
+        pass
+
+class AirQualityService(IAirQualityService):
+    def __init__(self, repository: IAirQualityRepository) -> None:
+        self.repository = repository
+
+    async def get_air_quality_index(self, sensor_id: int) -> str:
+        pm10_record = await self.repository.get_last_air_quality_params(sensor_id=sensor_id)
+        if pm10_record:
+            pm10_index_value = PM10IndexEnum.from_pm10_value(pm10_record.pm10_value)
+            return pm10_index_value
+        logger.warning("No air quality data available for the index calculation.")
+        return "No Data"
+
+    async def get_mean_params(self, sensor_id: int) -> Optional[float]:
+        all_quality_params = await self.repository.get_all_air_quality_params(sensor_id=sensor_id)
+        if all_quality_params:
+            pm10_values = [r.pm10_value for r in all_quality_params if r.pm10_value is not None]
+            if pm10_values:
+                return sum(pm10_values) / len(pm10_values)
+        logger.warning("No air quality data available for mean calculation.")
+        return None
+
+@inject
+async def main(service: IAirQualityService = Provide["container.service"]) -> None:
+    last_pm10_index = await service.get_air_quality_index(consts.SENSOR_ID)
+    mean_pm10_value = await service.get_mean_params(consts.SENSOR_ID)
+
+    print(f"Current AQI: {last_pm10_index}, average PM10 value: {mean_pm10_value}")
+
+if __name__ == "__main__":
+    container = containers.DeclarativeContainer()
+    container.config = providers.Configuration()
+
+    container.repository = providers.Singleton(AirQualityRepository)
+    container.service = providers.Factory(AirQualityService, repository=container.repository)
+
+    container.wire(modules=[__name__])
+    asyncio.run(main())
