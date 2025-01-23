@@ -110,8 +110,8 @@ img_gray = mean(img_rgb, 3);
 rows = 40:200;
 cols = 40:200;
 
-stara_wartosc_piksela_nad = img_gray(rows - 1, cols);  % Piksel nad (y-1)
-stara_wartosc_piksela_pod = img_gray(rows + 1, cols);  % Piksel pod (y+1)
+stara_wartosc_piksela_nad = img_gray(rows - 1, cols);
+stara_wartosc_piksela_pod = img_gray(rows + 1, cols);
 nowa_wartosc_piksela = 128 + stara_wartosc_piksela_nad - stara_wartosc_piksela_pod;
 img_gray(rows, cols) = nowa_wartosc_piksela;
 img_gray = max(0, min(255, img_gray));
