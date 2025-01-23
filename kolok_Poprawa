@@ -46,11 +46,38 @@ S2 = [sx2 0 0;
       0 sy2 0;
       0 0 1];
       
-MOC = T1 * S1 * T2 * S2;
+MOC = S2 * T2 * S1 * T1;
 
 disp(MOC);
 
+zad3
 
+function [Rn, Gn, Bn] = kol_zad_6(R, G, B)
+    K = R;
+    L = R - G;
+    M = G - B;
+
+    K_new = K;
+    mask = (K <= 88);
+    K_new(mask) = 88 + 0.8 * K(mask);
+    K_new(~mask) = 77;
+
+    Rn = K_new;
+    Gn = K_new - L;
+    Bn = Gn - M;
+endfunction
+
+
+
+img_org = double(imread('rzeczka.jpg'));
+
+[rn, gn, bn] = kol_zad_6(img_org(:, :, 1), img_org(:, :, 2), img_org(:, :, 3));
+
+img_out(:, :, 1) = rn;
+img_out(:, :, 2) = gn;
+img_out(:, :, 3) = bn;
+
+imshow(img_out / 255);
 
 zad4
 
