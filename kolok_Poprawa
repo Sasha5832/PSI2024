@@ -1,0 +1,73 @@
+zad1
+
+img = double(imread('rzeczka.jpg'));
+mean_value = mean(img(:));
+
+for i = 0:255
+    if i <= mean_value
+        LUT(i+1) = 100 + (i / mean_value) * (255 - 100);
+    else
+        LUT(i+1) = 255;
+    end
+end
+
+imgl = zeros(size(img));
+
+for c = 1:3  
+    channel = img(:,:,c);
+    imgl(:,:,c) = LUT(round(channel) + 1);
+end
+
+imglu = uint8(imgl);
+imshow(imglu);
+
+
+zad2
+tx = 10; 
+ty = 20; 
+sx1 = 2;  
+sy1 = 2; 
+sx2 = 1;  
+sy2 = 1/3;  
+
+T1 = [1 0 -tx;
+      0 1 -ty;
+      0 0 1];
+
+S1 = [sx1 0 0;
+      0 sy1 0;
+      0 0 1];
+
+T2 = [1 0 tx;
+      0 1 ty;
+      0 0 1];
+      
+S2 = [sx2 0 0;
+      0 sy2 0;
+      0 0 1];
+      
+MOC = T1 * S1 * T2 * S2;
+
+disp(MOC);
+
+
+
+zad4
+
+M_transform = [2.1  -2.2  2.3;
+               2.4   2.5  2.6;
+               0     0    1];
+
+x = 0:0.1:3.1;
+y = cos(x);
+
+points = [x; y; ones(size(x))];
+
+transformed_points = M_transform * points;
+x_new = transformed_points(1, :);
+y_new = transformed_points(2, :);
+
+figure;
+plot(x, y, 'bo-');
+hold on;
+plot(x_new, y_new, 'r*-');
